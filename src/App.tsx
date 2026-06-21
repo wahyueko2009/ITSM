@@ -21,6 +21,7 @@ import AiChatbot from './components/AiChatbot';
 import LoginScreen from './components/LoginScreen';
 import TicketDetailModal from './components/TicketDetailModal';
 import AuditorReportsTab from './components/AuditorReportsTab';
+import UserProfileModal from './components/UserProfileModal';
 
 import { 
   LayoutDashboard, Ticket as TicketIcon, GitBranch, 
@@ -212,6 +213,7 @@ export default function App() {
   // Highlighting context across tabs: e.g. currently active viewed ticket
   const [currentSelectedTicket, setCurrentSelectedTicket] = useState<Ticket | null>(null);
   const [ticketForModal, setTicketForModal] = useState<Ticket | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
 
   // Initialize on mount and listen to Firebase Auth status
   useEffect(() => {
@@ -245,11 +247,12 @@ export default function App() {
           const cachedSession = localStorage.getItem('itsm_session');
           let currentSessObj = cachedSession ? JSON.parse(cachedSession) : null;
           if (!currentSessObj) {
+            const isCompanyAdmin = (firebaseUser.email || '').trim().toLowerCase() === 'admin@company.com';
             currentSessObj = {
               email: firebaseUser.email || 'user@company.com',
               name: firebaseUser.displayName || 'Pengguna Google',
-              role: 'user' as const, // Default to user level so regular accounts don't auto-claim Admin
-              department: 'Umum',
+              role: isCompanyAdmin ? ('admin' as const) : ('user' as const), // Default to user level unless admin@company.com
+              department: isCompanyAdmin ? 'IT Service Management' : 'Umum',
             };
             localStorage.setItem('itsm_session', JSON.stringify(currentSessObj));
           }
@@ -298,7 +301,7 @@ export default function App() {
     setTickets(prev => [newT, ...prev]);
     if (token) {
       try {
-        await fetch('/api/tickets', {
+        const response = await fetch('/api/tickets', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -306,18 +309,25 @@ export default function App() {
           },
           body: JSON.stringify(newT)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal menyimpan tiket ke basis data:", err);
+        alert(`Gagal menyimpan tiket Baru ke server: ${err.message}. Perubahan dibatalkan.`);
+        setTickets(prev => prev.filter(t => t.id !== newT.id));
       }
     }
   };
 
   const handleUpdateTicket = async (updatedT: Ticket) => {
+    const originalTickets = [...tickets];
     setTickets(prev => prev.map(t => t.id === updatedT.id ? updatedT : t));
     setCurrentSelectedTicket(updatedT);
     if (token) {
       try {
-        await fetch(`/api/tickets/${updatedT.id}`, {
+        const response = await fetch(`/api/tickets/${updatedT.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -325,8 +335,14 @@ export default function App() {
           },
           body: JSON.stringify(updatedT)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal menyinkronkan status tiket ke basis data:", err);
+        alert(`Gagal menyinkronkan status tiket ke server: ${err.message}. Perubahan dibatalkan.`);
+        setTickets(originalTickets);
       }
     }
   };
@@ -335,7 +351,7 @@ export default function App() {
     setChanges(prev => [newC, ...prev]);
     if (token) {
       try {
-        await fetch('/api/changes', {
+        const response = await fetch('/api/changes', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -343,17 +359,24 @@ export default function App() {
           },
           body: JSON.stringify(newC)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal menyimpan RFC ke basis data:", err);
+        alert(`Gagal menyimpan RFC ke server: ${err.message}. Perubahan dibatalkan.`);
+        setChanges(prev => prev.filter(c => c.id !== newC.id));
       }
     }
   };
 
   const handleUpdateChange = async (updatedC: ChangeRequest) => {
+    const originalChanges = [...changes];
     setChanges(prev => prev.map(c => c.id === updatedC.id ? updatedC : c));
     if (token) {
       try {
-        await fetch(`/api/changes/${updatedC.id}`, {
+        const response = await fetch(`/api/changes/${updatedC.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -361,8 +384,14 @@ export default function App() {
           },
           body: JSON.stringify(updatedC)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal memproses persetujuan RFC ke basis data:", err);
+        alert(`Gagal menyinkronkan persetujuan RFC ke server: ${err.message}. Perubahan dibatalkan.`);
+        setChanges(originalChanges);
       }
     }
   };
@@ -429,7 +458,7 @@ export default function App() {
     setAssets(prev => [newA, ...prev]);
     if (token) {
       try {
-        await fetch('/api/assets', {
+        const response = await fetch('/api/assets', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -437,17 +466,26 @@ export default function App() {
           },
           body: JSON.stringify(newA)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal menyimpan aset ke CMDB basis data:", err);
+        alert(`Gagal menyimpan aset ke server: ${err.message}. Perubahan dibatalkan.`);
+        setAssets(prev => prev.filter(a => a.id !== newA.id));
       }
     }
   };
 
-  const handleUpdateAsset = async (updatedA: Asset) => {
-    setAssets(prev => prev.map(a => a.id === updatedA.id ? updatedA : a));
+  const handleUpdateAsset = async (updatedA: Asset & { changeReason?: string }) => {
+    const originalAssets = [...assets];
+    // Strip off changeReason before local state update to prevent pollution if needed, though they match Asset interface
+    const { changeReason, ...assetOnly } = updatedA;
+    setAssets(prev => prev.map(a => a.id === updatedA.id ? assetOnly : a));
     if (token) {
       try {
-        await fetch(`/api/assets/${updatedA.id}`, {
+        const response = await fetch(`/api/assets/${updatedA.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -455,8 +493,14 @@ export default function App() {
           },
           body: JSON.stringify(updatedA)
         });
-      } catch (err) {
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
+      } catch (err: any) {
         console.error("Gagal menyimpan perubahan aset ke basis data:", err);
+        alert(`Gagal menyinkronkan aset ke server: ${err.message}. Perubahan dibatalkan.`);
+        setAssets(originalAssets);
       }
     }
   };
@@ -609,7 +653,7 @@ export default function App() {
       return t.requester === session.name;
     } else {
       const isUnassigned = !t.assignedAgent || t.assignedAgent.trim() === '' || t.assignedAgent.toLowerCase() === 'unassigned';
-      if (session.name === 'Admin Support') {
+      if (session.role === 'admin') {
         return t.status === 'Baru' && isUnassigned;
       } else {
         // Specialist Agent / Resolver sees tickets assigned to them where status is 'Ditugaskan' (Mulai Kerja button not clicked yet)
@@ -667,7 +711,7 @@ export default function App() {
                   <TicketIcon size={16} className={`${activeTab === 'incidents' ? 'text-indigo-400' : 'text-slate-500'}`} />
                   <span className="font-medium">
                     {session.role === 'admin'
-                      ? (session.name === 'Admin Support' ? 'All Incidents & Requests' : 'Tiket Ditugaskan Ke Saya')
+                      ? 'All Incidents & Requests'
                       : session.role === 'agent'
                       ? 'Tiket Tugas IT Agent'
                       : 'Tiket & Laporan Saya'}
@@ -828,17 +872,21 @@ export default function App() {
 
         {/* Profile Segment (Bottom of Sidebar with LogOut) */}
         <div className="mt-auto p-3 bg-slate-950 flex items-center justify-between border-t border-slate-850 shrink-0 gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <button 
+            onClick={() => setShowProfileModal(true)}
+            title="Lihat Profil & Aset Saya"
+            className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer hover:bg-slate-905 hover:bg-slate-900 p-1.5 rounded-lg transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500/50 flex-1"
+          >
             <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-bold font-mono shadow-sm shrink-0 uppercase ${
               session.role === 'admin' ? 'bg-indigo-650' : session.role === 'agent' ? 'bg-amber-600' : 'bg-emerald-650'
             }`}>
               {session.role === 'admin' ? 'AD' : session.role === 'agent' ? 'AG' : 'SR'}
             </div>
-            <div className="min-w-0 text-left">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-white truncate leading-tight">{session.name}</p>
               <p className="text-[10px] text-slate-500 truncate leading-tight font-medium mt-0.5">{session.department}</p>
             </div>
-          </div>
+          </button>
           <button 
             onClick={handleLogout}
             title="Keluar" 
@@ -934,9 +982,11 @@ export default function App() {
           {activeTab === 'assets' && (session?.role === 'admin' || session?.role === 'agent') && (
             <AssetsTab
               assets={assets}
+              users={users}
               onAddAsset={handleAddAsset}
               onUpdateAsset={handleUpdateAsset}
               onDeleteAsset={handleDeleteAsset}
+              token={token}
             />
           )}
 
@@ -967,6 +1017,7 @@ export default function App() {
               token={token}
               currentUserEmail={session.email}
               onUsersChange={handleRefreshUsers}
+              assets={assets}
             />
           )}
 
@@ -1021,6 +1072,15 @@ export default function App() {
             setTicketForModal(updatedT);
           }}
           users={users}
+        />
+      )}
+
+      {/* User Info Profile & Assigned Assets Pop-up Modal */}
+      {showProfileModal && session && (
+        <UserProfileModal
+          session={session}
+          assets={assets}
+          onClose={() => setShowProfileModal(false)}
         />
       )}
 

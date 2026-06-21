@@ -12,9 +12,10 @@ interface UsersTabProps {
   token: string | null;
   currentUserEmail: string;
   onUsersChange?: () => void;
+  assets?: any[];
 }
 
-export default function UsersTab({ token, currentUserEmail, onUsersChange }: UsersTabProps) {
+export default function UsersTab({ token, currentUserEmail, onUsersChange, assets = [] }: UsersTabProps) {
   const [usersList, setUsersList] = useState<DatabaseUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -429,6 +430,7 @@ export default function UsersTab({ token, currentUserEmail, onUsersChange }: Use
                 </th>
                 <th className="px-6 py-4.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Kata Sandi</th>
                 <th className="px-6 py-4.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Hak Otoritas</th>
+                <th className="px-6 py-4.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Aset IT Pegangan</th>
                 <th className="px-6 py-4.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">UID Google Auth</th>
                 <th className="px-6 py-4.5 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Aksi</th>
               </tr>
@@ -496,6 +498,33 @@ export default function UsersTab({ token, currentUserEmail, onUsersChange }: Use
                     </span>
                   </td>
                   <td className="px-6 py-4">
+                    {(() => {
+                      const userAssets = assets.filter(a => a.owner && (
+                        a.owner.toLowerCase() === user.name?.toLowerCase() ||
+                        a.owner.toLowerCase() === user.email?.toLowerCase()
+                      ));
+                      if (userAssets.length === 0) {
+                        return <span className="text-slate-400 font-medium text-[11px] font-mono">—</span>;
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-1 max-w-[180px]">
+                          {userAssets.map(a => (
+                            <span 
+                              key={a.id} 
+                              className="inline-flex items-center gap-1 bg-indigo-55/90 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-md px-2 py-0.5 text-[10px] font-bold shadow-2xs shrink-0"
+                              title={`${a.name} (${a.serialNumber}) - Status: ${a.status} - Lokasi: ${a.location}`}
+                            >
+                              <span className="text-[10px]" role="img" aria-label="asset icon">
+                                {a.type === 'Workstation' ? '💻' : a.type === 'Server' ? '🖥️' : '🏷️'}
+                              </span>
+                              <span className="font-mono tracking-tight">{a.id}</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="text-xs font-mono font-bold tracking-tight text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 select-all max-w-[150px] truncate" title={user.uid}>
                       {user.uid}
                     </div>
@@ -524,7 +553,7 @@ export default function UsersTab({ token, currentUserEmail, onUsersChange }: Use
 
               {paginatedUsers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     <Users className="mx-auto text-slate-300 mb-2" size={32} />
                     <p className="text-xs font-bold text-slate-500">Tidak ada pengguna yang sesuai.</p>
                     <p className="text-[10px] text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau penyaring departemen di atas.</p>

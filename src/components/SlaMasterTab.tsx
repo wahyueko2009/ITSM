@@ -109,7 +109,7 @@ export default function SlaMasterTab({
   // Initialize SLA for the selected year if not present
   const handleInitializeYear = () => {
     if (!isAdmin) {
-      alert('Izin Ditolak: Hanya Admin Support yang dapat menentukan aturan SLA.');
+      alert('Izin Ditolak: Hanya Sys Admin yang dapat menentukan aturan SLA.');
       return;
     }
 
@@ -140,7 +140,7 @@ export default function SlaMasterTab({
   // Enable inline editing for a row
   const startEditing = (p: SlaPolicy) => {
     if (!isAdmin) {
-      alert('Akses Ditolak: Hanya Admin Support yang diperbolehkan mengubah target atau penjelasan SLA!');
+      alert('Akses Ditolak: Hanya Sys Admin yang diperbolehkan mengubah target atau penjelasan SLA!');
       return;
     }
 
@@ -520,7 +520,7 @@ export default function SlaMasterTab({
               </button>
             ) : (
               <div className="p-2.5 bg-slate-50 text-[10px] text-slate-450 border border-slate-200/50 rounded-lg inline-block font-semibold">
-                Sila hubungi <strong>Admin Support</strong> untuk menginisialisasi parameter dasar SLA {selectedYear}.
+                Sila hubungi <strong>Sys Admin/Administrator</strong> untuk menginisialisasi parameter dasar SLA {selectedYear}.
               </div>
             )}
           </div>

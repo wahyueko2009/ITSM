@@ -30,7 +30,7 @@ export default function TicketDetailModal({ ticket, onClose, session, onUpdateTi
 
   const isTechnical = session.role === 'admin' || session.role === 'agent';
   const isAdmin = session.role === 'admin';
-  const isDispatcher = session.name === 'Admin Support';
+  const isDispatcher = session.role === 'admin';
   const isAssignedToMe = useMemo(() => {
     const isDirectlyAssigned = !!(ticket.assignedAgent && ticket.assignedAgent.toLowerCase() !== 'unassigned' && ticket.assignedAgent.toLowerCase().includes(session.name.toLowerCase()));
     const isITStaff = session.role === 'admin' || session.role === 'agent';
@@ -374,6 +374,63 @@ export default function TicketDetailModal({ ticket, onClose, session, onUpdateTi
                 {ticket.description}
               </p>
             </div>
+
+            {/* Evidence Attachment Section */}
+            {ticket.evidence && (
+              <div className="border border-slate-100 rounded-xl p-4 bg-white shadow-3xs space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                  <h4 className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 font-mono flex items-center gap-1.5">
+                    <FileText size={12} className="text-slate-500" />
+                    Lampiran Bukti Gambar Insiden
+                  </h4>
+                  {ticket.evidenceName && (
+                    <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded">
+                      {ticket.evidenceName}
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const isSysAdmin = session.role === 'admin';
+                  const isAssignedAgent = !!(ticket.assignedAgent && ticket.assignedAgent.toLowerCase() !== 'unassigned' && ticket.assignedAgent.toLowerCase().includes(session.name.toLowerCase()));
+                  const isRequester = ticket.requester === session.name || ticket.requesterEmail === session.email;
+                  
+                  if (isSysAdmin || isAssignedAgent || isRequester) {
+                    return (
+                      <div className="space-y-3">
+                        <div className="border border-slate-100 rounded-lg p-2 bg-slate-50/50 inline-block overflow-hidden max-w-full">
+                          <img 
+                            src={ticket.evidence} 
+                            alt={ticket.evidenceName || "Bukti Gambar"} 
+                            referrerPolicy="no-referrer"
+                            className="max-h-[300px] w-auto h-auto rounded-lg object-contain cursor-zoom-in hover:opacity-95 transition"
+                            onClick={() => {
+                              try {
+                                const win = window.open();
+                                if (win) {
+                                  win.document.write(`<img src="${ticket.evidence}" style="max-width:100%; height:auto;" />`);
+                                }
+                              } catch (e) {
+                                console.error(e);
+                              }
+                            }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-450 italic font-mono">
+                          * Diperlihatkan kepada Anda berdasarkan otorisasi ({isSysAdmin ? 'Sys Admin' : isAssignedAgent ? 'IT Agent Penanggung Jawab' : 'Pemilik Tiket'}).
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold font-mono">
+                        <Lock size={14} className="text-rose-500 shrink-0 animate-bounce" />
+                        Akses Terbatas: Hanya Sys Admin atau IT Agent Penanggung Jawab yang diizinkan melihat lampiran gambar ini.
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+            )}
 
             {/* SLA Info section */}
             <div className="space-y-2 border border-slate-150/75 p-4 rounded-xl bg-slate-50/50">

@@ -18,7 +18,8 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Lazy-loaded Gemini Client wrapper to prevent boot-up crash when key is not provided yet
 let aiClient: GoogleGenAI | null = null;
@@ -207,11 +208,13 @@ app.post('/api/auth/sync', requireAuth, async (req: AuthRequest, res) => {
       res.status(401).json({ error: 'Token Firebase tidak valid' });
       return;
     }
+    const finalEmail = (email || req.user.email || 'user@company.com').trim().toLowerCase();
+    const finalRole = finalEmail === 'admin@company.com' ? 'admin' : (role || 'user');
     const syncedUser = await queries.getOrCreateUser(
       req.user.uid,
-      email || req.user.email || 'user@company.com',
+      finalEmail,
       name || 'Pengguna ITSM',
-      role || 'user',
+      finalRole,
       department || 'Umum'
     );
     res.json(syncedUser);
@@ -235,6 +238,7 @@ app.post('/api/auth/local-login', async (req, res) => {
 
     // Default hardcoded presets matching LoginScreen
     const PRESETS = [
+      { email: 'admin@company.com', name: 'Sys Admin', role: 'admin', department: 'IT Service Management', password: 'admin' },
       { email: 'admin@ifg.id', name: 'Admin Support', role: 'admin', department: 'IT Service Desk', password: 'admin' },
       { email: 'budi.santoso@ifg.id', name: 'Budi Santoso', role: 'admin', department: 'IT Infrastructure', password: 'budi' },
       { email: 'rian@ifg.id', name: 'Rian Hidayat', role: 'admin', department: 'Information Security', password: 'rian' },
@@ -424,6 +428,18 @@ app.post('/api/assets', requireAuth, async (req: AuthRequest, res) => {
   try {
     const asset = req.body;
     const result = await queries.createAsset(asset);
+    
+    // Create initial history log
+    await queries.createAssetHistory({
+      assetId: asset.id,
+      actionType: 'CREATE',
+      toUser: asset.owner,
+      toLocation: asset.location,
+      notes: 'Aset baru didaftarkan di CMDB.',
+      changedBy: req.user?.email || 'System',
+      createdAt: new Date().toISOString()
+    });
+
     res.status(201).json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -434,12 +450,87 @@ app.put('/api/assets/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const fields = req.body;
+    
+    // Get original asset state to compare differences
+    const oldAsset = await queries.getAssetById(id);
+    
     await queries.updateAsset(id, fields);
+
+    if (oldAsset) {
+      const changedBy = req.user?.email || 'System';
+      const timestamp = new Date().toISOString();
+      const notes = fields.changeReason || '';
+
+      // Check for handover (from_user to to_user)
+      if (fields.owner !== undefined && oldAsset.owner !== fields.owner) {
+        await queries.createAssetHistory({
+          assetId: id,
+          actionType: 'HANDOVER',
+          fromUser: oldAsset.owner,
+          toUser: fields.owner,
+          notes: notes || 'Serah terima / serah pakai aset kepada karyawan baru.',
+          changedBy,
+          createdAt: timestamp
+        });
+      }
+
+      // Check for physical location change
+      if (fields.location !== undefined && oldAsset.location !== fields.location) {
+        await queries.createAssetHistory({
+          assetId: id,
+          actionType: 'LOCATION_CHANGE',
+          fromLocation: oldAsset.location,
+          toLocation: fields.location,
+          notes: notes || 'Perpindahan lokasi penempatan fisik aset.',
+          changedBy,
+          createdAt: timestamp
+        });
+      }
+
+      // Check for status changes
+      if (fields.status !== undefined && oldAsset.status !== fields.status) {
+        await queries.createAssetHistory({
+          assetId: id,
+          actionType: 'STATUS_CHANGE',
+          notes: notes || `Siklus hidup diperbarui dari "${oldAsset.status}" menjadi "${fields.status}".`,
+          changedBy,
+          createdAt: timestamp
+        });
+      }
+
+      // General update (if none of the main items above occurred but something else was edited)
+      const isHandover = fields.owner !== undefined && oldAsset.owner !== fields.owner;
+      const isLocChange = fields.location !== undefined && oldAsset.location !== fields.location;
+      const isStatusChange = fields.status !== undefined && oldAsset.status !== fields.status;
+      
+      if (!isHandover && !isLocChange && !isStatusChange) {
+        await queries.createAssetHistory({
+          assetId: id,
+          actionType: 'UPDATE',
+          notes: notes || 'Informasi detail spesifikasi aset atau IP Address diperbarui.',
+          changedBy,
+          createdAt: timestamp
+        });
+      }
+    }
+
     res.json({ success: true, id });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Fetch action transfer & location history for a specific CI asset
+app.get('/api/assets/:id/history', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const history = await queries.getAssetHistories(id);
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 app.delete('/api/assets/:id', requireAuth, async (req: AuthRequest, res) => {
   try {

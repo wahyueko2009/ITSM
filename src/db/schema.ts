@@ -31,6 +31,8 @@ export const tickets = pgTable('tickets', {
   slaDeadline: text('sla_deadline').notNull(),
   resolutionNotes: text('resolution_notes'),
   linkedAssetId: text('linked_asset_id'),
+  evidence: text('evidence'),
+  evidenceName: text('evidence_name'),
 });
 
 // Work notes table
@@ -65,6 +67,8 @@ export const changeRequests = pgTable('change_requests', {
   cabMeetingDate: text('cab_meeting_date'),
   cabVotes: text('cab_votes'),
   cabNotes: text('cab_notes'),
+  excelFile: text('excel_file'),
+  excelFileName: text('excel_file_name'),
 });
 
 // Assets table
@@ -127,4 +131,19 @@ export const cabMembers = pgTable('cab_members', {
   email: text('email'),
   active: text('active').notNull().default('Aktif'), // 'Aktif' | 'Nonaktif'
 });
+
+// Asset Transfer and Location History table
+export const assetHistories = pgTable('asset_histories', {
+  id: serial('id').primaryKey(),
+  assetId: text('asset_id').notNull(),
+  actionType: text('action_type').notNull(), // 'HANDOVER' | 'LOCATION_CHANGE' | 'STATUS_CHANGE' | 'CREATE' | 'UPDATE'
+  fromUser: text('from_user'),
+  toUser: text('to_user'),
+  fromLocation: text('from_location'),
+  toLocation: text('to_location'),
+  notes: text('notes'),
+  changedBy: text('changed_by').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
 

@@ -19,6 +19,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // Pre-coded users
   const PRESETS = [
     {
+      name: 'Sys Admin',
+      email: 'admin@company.com',
+      password: 'admin',
+      role: 'admin' as const,
+      department: 'IT Service Management',
+      description: 'System Administrator Utama dengan akses kontrol penuh, pembuat aturan SLA, pengelola aset CMDB, & solusi Knowledge Base.',
+      avatarInitials: 'SA'
+    },
+    {
       name: 'Admin Support',
       email: 'admin@ifg.id',
       password: 'admin',

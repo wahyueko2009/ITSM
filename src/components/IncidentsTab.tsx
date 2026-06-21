@@ -178,6 +178,8 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
   const [formEmail, setFormEmail] = useState('');
   const [formDept, setFormDept] = useState('');
   const [formLinkedAsset, setFormLinkedAsset] = useState('');
+  const [formEvidence, setFormEvidence] = useState('');
+  const [formEvidenceName, setFormEvidenceName] = useState('');
 
   // Helper styles for Ticket Types badge list
   const getTypeBadgeStyle = (type: TicketType) => {
@@ -204,13 +206,11 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
   };
 
   // Role-based filtering:
-  // - Admin Support (dispatcher) sees all tickets.
+  // - Admin Support / Sys Admin (dispatcher) sees all tickets.
   // - Specialist Agent (Resolver, e.g. Budi Santoso) sees ONLY assigned tickets.
   // - Standard User (client) sees only their own requested bookings.
   const roleFilteredTickets = session.role === 'admin'
-    ? (session.name === 'Admin Support'
-        ? tickets
-        : tickets.filter(t => t.assignedAgent && t.assignedAgent.toLowerCase().includes(session.name.toLowerCase())))
+    ? tickets
     : session.role === 'agent'
     ? tickets.filter(t => t.assignedAgent && t.assignedAgent.toLowerCase().includes(session.name.toLowerCase()))
     : tickets.filter(t => t.requester === session.name);
@@ -284,11 +284,13 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
       updatedAt: now,
       slaDeadline: deadline.toISOString(),
       linkedAssetId: formLinkedAsset || undefined,
+      evidence: formEvidence || undefined,
+      evidenceName: formEvidenceName || undefined,
       workNotes: [
         {
           id: `system-${Date.now()}`,
           author: 'Sistem Portal',
-          text: `Tiket baru dengan tipe "${formTicketType}" berhasil diajukan dengan prioritas ${formPriority}. SLA waktu respons dimulai di target ${hoursToTarget} jam.`,
+          text: `Tiket baru dengan tipe "${formTicketType}" berhasil diajukan dengan prioritas ${formPriority}. SLA waktu respons dimulai di target ${hoursToTarget} jam.${formEvidenceName ? ` (Disertai bukti gambar: ${formEvidenceName})` : ''}`,
           createdAt: now,
           type: 'system'
         }
@@ -308,6 +310,8 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
     setFormEmail('');
     setFormDept('');
     setFormLinkedAsset('');
+    setFormEvidence('');
+    setFormEvidenceName('');
   };
 
   // Add Comment/WorkNote
@@ -642,9 +646,9 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
           <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900">
-                {session.role === 'agent' || (session.role === 'admin' && session.name !== 'Admin Support') ? 'Tiket Tugas Saya' : 'Daftar Penanganan Insiden TI'} ({filteredTickets.length})
+                {session.role === 'agent' ? 'Tiket Tugas Saya' : 'Daftar Penanganan Insiden TI'} ({filteredTickets.length})
               </h3>
-              {(session.role === 'agent' || (session.role === 'admin' && session.name !== 'Admin Support')) && (
+              {session.role === 'agent' && (
                 <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono tracking-wider">
                   ⚠️ Mode Agen: {session.name}
                 </span>
@@ -906,7 +910,7 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
                   <div className="space-y-3.5 text-left border border-slate-100 p-3 rounded-lg bg-indigo-50/5">
                     {(() => {
                       const isAdmin = session.role === 'admin';
-                      const isDispatcher = session.name === 'Admin Support';
+                      const isDispatcher = session.role === 'admin';
                       const isDirectlyAssigned = !!(selectedTicket.assignedAgent && selectedTicket.assignedAgent.toLowerCase() !== 'unassigned' && selectedTicket.assignedAgent.toLowerCase().includes(session.name.toLowerCase()));
                       const isUnassigned = !selectedTicket.assignedAgent || selectedTicket.assignedAgent.trim() === '' || selectedTicket.assignedAgent.toLowerCase() === 'unassigned';
                       const isITStaff = session.role === 'admin' || session.role === 'agent';
@@ -1663,6 +1667,72 @@ export default function IncidentsTab({ tickets, assets, kbArticles, onAddTicket,
                                 <option key={a.id} value={a.id}>{a.id} - {a.name}</option>
                               ))}
                             </select>
+                          </div>
+
+                          {/* Evidence Upload for any Ticket Type */}
+                          <div className="md:col-span-2 border border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/50 p-4 rounded-xl transition duration-200">
+                            <label className="id-label-evidence-upload block text-xs font-bold text-slate-700 mb-2">
+                              Upload Bukti Gambar Pendukung (.png, .jpg, .jpeg)
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <label className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-250 cursor-pointer px-3 py-2 rounded-lg text-xs font-black shadow-sm text-slate-700 transition">
+                                <Plus size={14} className="text-slate-500" />
+                                Pilih Gambar...
+                                <input 
+                                  type="file"
+                                  id="ticket-image-upload"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      if (file.size > 5 * 1024 * 1024) {
+                                        alert('Ukuran gambar melebihi batas 5MB.');
+                                        return;
+                                      }
+                                      const reader = new FileReader();
+                                      reader.onload = (event) => {
+                                        if (event.target?.result) {
+                                          setFormEvidence(event.target.result as string);
+                                          setFormEvidenceName(file.name);
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              {formEvidenceName ? (
+                                <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1.5 rounded-lg">
+                                  <span className="font-semibold truncate max-w-[200px]">{formEvidenceName}</span>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => {
+                                      setFormEvidence('');
+                                      setFormEvidenceName('');
+                                      const el = document.getElementById('ticket-image-upload') as HTMLInputElement;
+                                      if (el) el.value = '';
+                                    }}
+                                    className="text-red-500 hover:text-red-700 ml-1 font-bold animate-pulse"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-450 italic">Belum ada gambar yang dipilih</span>
+                              )}
+                            </div>
+                            {formEvidence && (
+                              <div className="mt-3.5 border border-slate-100 rounded-lg p-2 bg-white max-w-[240px]">
+                                <img 
+                                  id="ticket-preview-uploaded-img"
+                                  src={formEvidence} 
+                                  alt="Preview Bukti" 
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-auto rounded object-cover max-h-[140px]" 
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
 

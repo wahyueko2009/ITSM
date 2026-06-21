@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { ChangeRequest, ChangeRisk, ChangeClassification, ChangeStatus, CabMember, UserSession } from '../types';
 import { 
   GitBranch, Plus, Search, Filter, ShieldAlert, CheckCircle2, 
   XOctagon, FileText, Calendar, User, AlignLeft, ChevronRight,
-  Users, Check, X, ThumbsUp, ThumbsDown, MessageSquare, Clock, AlertCircle, Edit, Trash
+  Users, Check, X, ThumbsUp, ThumbsDown, MessageSquare, Clock, AlertCircle, Edit, Trash, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -97,6 +98,8 @@ export default function ChangesTab({
   const [formImplPlan, setFormImplPlan] = useState('');
   const [formRollbackPlan, setFormRollbackPlan] = useState('');
   const [formTargetDate, setFormTargetDate] = useState('');
+  const [formExcelFile, setFormExcelFile] = useState('');
+  const [formExcelFileName, setFormExcelFileName] = useState('');
 
   // Handle Filtering
   const filteredChanges = changes.filter(c => {
@@ -135,9 +138,11 @@ export default function ChangesTab({
       rollbackPlan: formRollbackPlan || 'Restore database dari snapshot backup terakhi.',
       classification: formClass,
       status: 'Menunggu Persetujuan',
-      requester: 'Budi Santoso', // Default requester
+      requester: session?.name || 'Budi Santoso', // Use current session name or default Budi
       createdAt: now,
       targetDate: formTargetDate,
+      excelFile: formExcelFile || undefined,
+      excelFileName: formExcelFileName || undefined,
     };
 
     onAddChange(newChange);
@@ -154,6 +159,8 @@ export default function ChangesTab({
     setFormImplPlan('');
     setFormRollbackPlan('');
     setFormTargetDate('');
+    setFormExcelFile('');
+    setFormExcelFileName('');
   };
 
   // Approval Process CAB Board
@@ -969,6 +976,66 @@ export default function ChangesTab({
                       className="w-full bg-slate-50 border-0 focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-mono text-[11px] text-slate-800"
                     />
                   </div>
+
+                  {/* Excel Upload for Change Board */}
+                  <div className="md:col-span-2 border border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/50 p-4 rounded-xl transition duration-200">
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      Dokumen Lampiran Excel CAB (.xlsx, .xls)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-250 cursor-pointer px-3 py-2 rounded-lg text-xs font-black shadow-sm text-slate-700 transition">
+                        <Plus size={14} className="text-slate-500" />
+                        Pilih File Excel...
+                        <input 
+                          type="file"
+                          id="change-excel-upload"
+                          accept=".xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('spreadsheet') || file.type.includes('excel');
+                              if (!isExcel) {
+                                alert('Sila pilih file Excel yang sah (.xlsx, .xls).');
+                                return;
+                              }
+                              if (file.size > 5 * 1024 * 1024) {
+                                alert('Ukuran file melebihi batas 5MB.');
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                if (event.target?.result) {
+                                  setFormExcelFile(event.target.result as string);
+                                  setFormExcelFileName(file.name);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      {formExcelFileName ? (
+                        <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-120 px-2.5 py-1.5 rounded-lg">
+                          <span className="font-semibold truncate max-w-[200px]">{formExcelFileName}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setFormExcelFile('');
+                              setFormExcelFileName('');
+                              const el = document.getElementById('change-excel-upload') as HTMLInputElement;
+                              if (el) el.value = '';
+                            }}
+                            className="text-red-500 hover:text-red-700 ml-1 font-bold"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-450 italic">Belum ada file Excel yang dipilih</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 bg-slate-50 -mx-5 -mb-5 px-5 py-3">
@@ -1119,6 +1186,37 @@ export default function ChangesTab({
                         <p className="text-xs font-bold text-slate-700 mt-1">{selectedChange.impact || 'Tidak ada downtime dilaporkan.'}</p>
                       </div>
                     </div>
+
+                    {/* Excel Attachment Preview Card */}
+                    {selectedChange.excelFile ? (
+                      <div className="border border-slate-200 rounded-xl bg-white shadow-3xs p-4 space-y-3 mt-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <h4 className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 font-mono flex items-center gap-1.5">
+                            <FileText size={12} className="text-emerald-600" />
+                            Dokumen Lampiran Excel CAB
+                          </h4>
+                          <span className="text-[10px] font-mono font-bold text-slate-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
+                            {selectedChange.excelFileName || 'dokumen_cab.xlsx'}
+                          </span>
+                        </div>
+                        
+                        {(() => {
+                          const isAuthorized = session?.role === 'admin' || session?.role === 'agent';
+                          
+                          if (!isAuthorized) {
+                            return (
+                              <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold font-mono">
+                                <Lock size={14} className="text-rose-500 shrink-0 select-none animate-bounce" />
+                                Akses Terbatas: Hanya Sys Admin dan IT Agent yang diizinkan melihat/preview file Excel CAB.
+                              </div>
+                            );
+                          }
+                          
+                          return <ExcelPreviewer base64Data={selectedChange.excelFile} fileName={selectedChange.excelFileName || 'dokumen_cab.xlsx'} />;
+                        })()}
+                      </div>
+                    ) : null}
+
                   </div>
                 </div>
 
@@ -1461,6 +1559,160 @@ export default function ChangesTab({
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function ExcelPreviewer({ base64Data, fileName }: { base64Data: string; fileName: string }) {
+  const [sheetsData, setSheetsData] = useState<{ [sheetName: string]: any[][] } | null>(null);
+  const [activeSheet, setActiveSheet] = useState<string>('');
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const base64Clean = base64Data.split(';base64,')[1] || base64Data.split(',')[1] || base64Data;
+      const binaryString = window.atob(base64Clean);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const workbook = XLSX.read(bytes.buffer, { type: 'array' });
+      const result: { [sheetName: string]: any[][] } = {};
+      workbook.SheetNames.forEach((sheetName) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        // Let's filter out row arrays which are entirely filled with empty/null strings to keep the UI clean
+        const filteredJson = json.filter(row => row && row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== ''));
+        result[sheetName] = filteredJson;
+      });
+      setSheetsData(result);
+      if (workbook.SheetNames.length > 0) {
+        setActiveSheet(workbook.SheetNames[0]);
+      }
+    } catch (err: any) {
+      console.error("Gagal melakukan parse Excel:", err);
+      setParseError("Tidak dapat menguraikan data file Excel ini. Pastikan file tidak rusak.");
+    }
+  }, [base64Data]);
+
+  if (parseError) {
+    return (
+      <div className="p-3 bg-amber-50 border border-amber-150 rounded-xl text-amber-800 text-xs font-mono">
+        ❌ {parseError}
+        <div className="mt-2 text-[10px]">
+          <a href={base64Data} download={fileName} className="text-indigo-600 hover:underline font-bold">
+            Unduh File Asli ({fileName})
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sheetsData) {
+    return (
+      <div className="text-xs text-slate-450 italic flex items-center gap-1.5 py-4 animate-pulse">
+        Sedang memproses & memformat dokumen Excel...
+      </div>
+    );
+  }
+
+  const sheetNames = Object.keys(sheetsData);
+  const rows = sheetsData[activeSheet] || [];
+
+  return (
+    <div className="space-y-3">
+      {/* Download direct link */}
+      <div className="flex items-center justify-between">
+        <a 
+          href={base64Data} 
+          download={fileName} 
+          className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold inline-flex items-center gap-1"
+        >
+          📥 Unduh File Excel ({fileName})
+        </a>
+        <span className="text-[10px] text-slate-400 font-mono italic">Smart-render oleh Sistem</span>
+      </div>
+
+      {/* Sheet Tabs */}
+      {sheetNames.length > 1 && (
+        <div className="flex items-center gap-1 border-b border-slate-100 pb-1.5 overflow-x-auto">
+          {sheetNames.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setActiveSheet(name)}
+              className={`px-3 py-1 text-[11px] rounded transition cursor-pointer shrink-0 ${
+                activeSheet === name 
+                  ? 'bg-indigo-600 text-white font-mono font-bold shadow-xs' 
+                  : 'bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 font-mono font-normal'
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Grid Table Layout */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 relative">
+        <div className="max-h-[300px] overflow-auto [font-family:monospace] [font-size:11px]">
+          <table className="w-full border-collapse border-spacing-0 select-text bg-white">
+            <thead>
+              <tr className="bg-slate-100 text-slate-500 font-mono select-none">
+                <th className="border-r border-b border-slate-200 p-1 text-center w-8 bg-slate-150"></th>
+                {(() => {
+                  const maxCols = rows.reduce((max, r) => Math.max(max, r.length), 0);
+                  const headers = [];
+                  for (let i = 0; i < maxCols; i++) {
+                    let letter = '';
+                    let temp = i;
+                    while (temp >= 0) {
+                      letter = String.fromCharCode((temp % 26) + 65) + letter;
+                      temp = Math.floor(temp / 26) - 1;
+                    }
+                    headers.push(
+                      <th key={i} className="border-r border-b border-slate-200 p-1 text-center font-bold min-w-[120px] text-slate-600 text-[10px]">
+                        {letter}
+                      </th>
+                    );
+                  }
+                  return headers;
+                })()}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="p-4 text-center text-slate-400 italic font-mono">Sheet ini kosong atau berisi data kosong</td>
+                </tr>
+              ) : (
+                rows.map((row, rIdx) => {
+                  const maxCols = rows.reduce((max, r) => Math.max(max, r.length), 0);
+                  // Ensure we fill up the row cells to max columns to render grid perfectly
+                  const filledRow = [...row];
+                  while (filledRow.length < maxCols) {
+                    filledRow.push('');
+                  }
+                  return (
+                    <tr key={rIdx} className="hover:bg-indigo-50/20 divide-x divide-slate-150 border-b border-slate-150">
+                      <td className="bg-slate-100 text-slate-400 font-mono text-center select-none font-bold p-1 text-[9px] border-r border-slate-200 w-8">
+                        {rIdx + 1}
+                      </td>
+                      {filledRow.map((cell: any, cIdx: number) => (
+                        <td key={cIdx} className="p-1 px-2 text-slate-800 break-words align-top font-sans text-xs">
+                          {cell !== undefined && cell !== null ? String(cell) : ''}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

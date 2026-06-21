@@ -3,22 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Asset, AssetType, AssetStatus } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Asset, AssetType, AssetStatus, DatabaseUser } from '../types';
 import { 
   Laptop, Database, Router, ShieldAlert, Cpu, Key, Tag, 
-  MapPin, Plus, Search, HelpCircle, Check, Info 
+  MapPin, Plus, Search, HelpCircle, Check, Info, User, History, ArrowRight, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AssetsTabProps {
   assets: Asset[];
+  users?: DatabaseUser[];
   onAddAsset: (asset: Asset) => void;
-  onUpdateAsset: (asset: Asset) => void;
+  onUpdateAsset: (asset: Asset & { changeReason?: string }) => void;
   onDeleteAsset: (id: string) => void;
+  token?: string | null;
 }
 
-export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteAsset }: AssetsTabProps) {
+export default function AssetsTab({ assets, users = [], onAddAsset, onUpdateAsset, onDeleteAsset, token = null }: AssetsTabProps) {
   // Search and Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -37,6 +39,34 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
   const [editLocation, setEditLocation] = useState('');
   const [editIp, setEditIp] = useState('');
   const [editPurchaseDate, setEditPurchaseDate] = useState('');
+  const [editChangeReason, setEditChangeReason] = useState('');
+
+  // Histories logs
+  const [histories, setHistories] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Fetch handover and location move history logs
+  useEffect(() => {
+    if (selectedAsset?.id && token) {
+      setHistoryLoading(true);
+      fetch(`/api/assets/${selectedAsset.id}/history`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setHistories(Array.isArray(data) ? data : []);
+        setHistoryLoading(false);
+      })
+      .catch(err => {
+        console.error("Gagal mengambil riwayat mutasi/penyerahan aset:", err);
+        setHistoryLoading(false);
+      });
+    } else {
+      setHistories([]);
+    }
+  }, [selectedAsset?.id, token]);
 
   const [validationError, setValidationError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -59,6 +89,7 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
     setEditLocation(asset.location);
     setEditIp(asset.ipAddress || '');
     setEditPurchaseDate(asset.purchaseDate || '');
+    setEditChangeReason('');
     setValidationError('');
     setShowDeleteConfirm(false);
     setShowEditModal(true);
@@ -72,7 +103,7 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
       return;
     }
 
-    const updated: Asset = {
+    const updated: Asset & { changeReason?: string } = {
       ...editingAsset,
       name: editName,
       type: editType,
@@ -81,6 +112,7 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
       location: editLocation || 'Gudang Kantor Pusat',
       ipAddress: editIp || undefined,
       purchaseDate: editPurchaseDate,
+      changeReason: editChangeReason,
     };
 
     onUpdateAsset(updated);
@@ -424,6 +456,100 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
                 </div>
               </div>
 
+              {/* Asset Handover & Location History Timeline */}
+              <div className="border-t border-slate-100 pt-4 mt-4 space-y-3">
+                <div className="flex items-center justify-between select-none">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-700">
+                    <History size={15} />
+                    <span>Riwayat Mutasi & Serah Terima</span>
+                  </div>
+                  <span className="bg-slate-100 text-slate-500 font-mono text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                    {histories.length} Aktivitas
+                  </span>
+                </div>
+
+                {historyLoading ? (
+                  <div className="py-6 flex flex-col items-center justify-center text-slate-400 gap-1.5">
+                    <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-[10px] font-medium">Memuat riwayat aset...</span>
+                  </div>
+                ) : histories.length === 0 ? (
+                  <div className="py-6 text-center text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg p-3">
+                    <ClipboardList className="mx-auto text-slate-300 mb-1.5" size={20} />
+                    <p className="text-[10px] font-bold text-slate-500">Belum ada riwayat mutasi.</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">Semua serah terima, perpindahan lokasi fisik, dan penggantian status akan tercatat otomatis di sini.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100 pl-1">
+                    {histories.map((h, idx) => {
+                      const isCreate = h.actionType === 'CREATE';
+                      const isHandover = h.actionType === 'HANDOVER';
+                      const isLocChange = h.actionType === 'LOCATION_CHANGE';
+                      const isStatusChange = h.actionType === 'STATUS_CHANGE';
+
+                      return (
+                        <div key={h.id || idx} className="flex gap-3 relative text-left">
+                          {/* Timeline dot */}
+                          <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] border z-10 ${
+                            isCreate ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                            isHandover ? 'bg-indigo-50 border-indigo-200 text-indigo-600' :
+                            isLocChange ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                            isStatusChange ? 'bg-blue-50 border-blue-200 text-blue-600' :
+                            'bg-slate-50 border-slate-200 text-slate-600'
+                          }`}>
+                            {isCreate ? '🆕' : isHandover ? '👥' : isLocChange ? '📍' : isStatusChange ? '🔄' : '📝'}
+                          </div>
+
+                          <div className="space-y-1 py-0.5 flex-1 select-text">
+                            {/* Type and Timestamp */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                              <span className="text-[11px] font-bold text-slate-800 leading-none">
+                                {isCreate ? 'Aset Pertama Dibuat' :
+                                 isHandover ? 'Serah Terima (Handover)' :
+                                 isLocChange ? 'Perubahan Lokasi Fisik' :
+                                 isStatusChange ? 'Pembaruan Siklus Hidup' : 'Aset Diperbarui'}
+                              </span>
+                              <span className="text-[9px] font-medium text-slate-400">
+                                {new Date(h.createdAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            </div>
+
+                            {/* Mutasi details */}
+                            {isHandover && (
+                              <div className="text-[10px] text-slate-600 font-medium bg-slate-50/70 p-1.5 rounded-md border border-slate-100 flex items-center gap-1.5">
+                                <span className="bg-slate-200/85 px-1 py-0.2 rounded font-semibold text-slate-700">{h.fromUser || '—'}</span>
+                                <ArrowRight size={10} className="text-slate-400" />
+                                <span className="bg-indigo-50 text-indigo-750 px-1 py-0.2 rounded font-bold text-indigo-700">{h.toUser || '—'}</span>
+                              </div>
+                            )}
+
+                            {isLocChange && (
+                              <div className="text-[10px] text-slate-600 font-medium bg-slate-50/70 p-1.5 rounded-md border border-slate-100 flex items-center gap-1.5">
+                                <span className="bg-slate-200/85 px-1 py-0.2 rounded font-semibold text-slate-705 shrink-0 select-none">📍 {h.fromLocation || '—'}</span>
+                                <ArrowRight size={10} className="text-slate-400" />
+                                <span className="bg-amber-50 text-amber-800 px-1 py-0.2 rounded font-bold shrink-0">📍 {h.toLocation || '—'}</span>
+                              </div>
+                            )}
+
+                            {/* Notes */}
+                            {h.notes && (
+                              <p className="text-[10px] text-slate-500 italic leading-snug bg-slate-50/35 px-1.5 py-1 rounded">
+                                "{h.notes}"
+                              </p>
+                            )}
+
+                            {/* Author */}
+                            <div className="text-[9px] text-slate-400 font-medium font-mono">
+                              Oleh: {h.changedBy || 'system'}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
           ) : (
             <div className="p-8 text-center text-slate-400 text-xs flex-1 flex flex-col items-center justify-center">
@@ -497,15 +623,20 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Penanggung Jawab / User</label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Tim DevOps atau Nama Staff"
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Penanggung Jawab / User <span className="text-red-500">*</span></label>
+                    <select
                       value={formOwner}
                       onChange={(e) => setFormOwner(e.target.value)}
                       required
-                      className="w-full bg-slate-50 border-0 focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800"
-                    />
+                      className="w-full bg-slate-50 border-0 focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800 cursor-pointer"
+                    >
+                      <option value="">-- Pilih Karyawan --</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name} ({u.department || 'Hardware'}) — {u.email}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -661,17 +792,21 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
                       required
                       className="w-full bg-slate-50 border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-mono text-slate-700"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Penanggung Jawab / User</label>
-                    <input
-                      type="text"
+                  </div>                   <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Penanggung Jawab / User <span className="text-red-500">*</span></label>
+                    <select
                       value={editOwner}
                       onChange={(e) => { setEditOwner(e.target.value); setValidationError(''); }}
                       required
-                      className="w-full bg-slate-50 border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800"
-                    />
+                      className="w-full bg-slate-50 border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800 cursor-pointer"
+                    >
+                      <option value="">-- Pilih Karyawan --</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.name}>
+                          {u.name} ({u.department || 'Hardware'}) — {u.email}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -703,6 +838,20 @@ export default function AssetsTab({ assets, onAddAsset, onUpdateAsset, onDeleteA
                       className="w-full bg-slate-50 border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800"
                     />
                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 mt-3">
+                  <label className="block text-xs font-bold text-indigo-600 mb-1 flex items-center gap-1.5 select-none">
+                    <ClipboardList size={14} />
+                    Alasan Perubahan / Mutasi (Opsional)
+                  </label>
+                  <textarea
+                    placeholder="Contoh: Karyawan dimutasi ke tim baru atau laptop dipindahkan ke gudang."
+                    value={editChangeReason}
+                    onChange={(e) => setEditChangeReason(e.target.value)}
+                    rows={2}
+                    className="w-full bg-slate-50 border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 rounded-lg p-2 text-xs font-medium text-slate-800 resize-none"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-4 bg-slate-50 -mx-5 -mb-5 px-5 py-3">

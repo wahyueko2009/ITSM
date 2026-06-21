@@ -42,6 +42,8 @@ export interface Ticket {
   resolutionNotes?: string;
   workNotes: WorkNote[];
   linkedAssetId?: string;
+  evidence?: string;
+  evidenceName?: string;
 }
 
 export type ChangeRisk = 'Tinggi' | 'Sedang' | 'Rendah';
@@ -67,6 +69,8 @@ export interface ChangeRequest {
   cabMeetingDate?: string;
   cabVotes?: string; // stringified JSON e.g. {"Hendrik": "Setuju", "Wahyudi": "Setuju", "Rudi": "Belum Memilih"}
   cabNotes?: string;
+  excelFile?: string;
+  excelFileName?: string;
 }
 
 export type AssetType = 'Workstation' | 'Server' | 'Router' | 'Switch' | 'Cloud VM' | 'Lisensi Software' | 'Aksesori';

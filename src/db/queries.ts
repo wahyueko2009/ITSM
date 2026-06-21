@@ -8,7 +8,8 @@ import {
   assets,
   kbArticles,
   slaPolicies,
-  cabMembers
+  cabMembers,
+  assetHistories
 } from './schema.ts';
 
 // User helper
@@ -157,6 +158,8 @@ export async function createTicket(data: any) {
       slaDeadline: ticketData.slaDeadline,
       resolutionNotes: ticketData.resolutionNotes || null,
       linkedAssetId: ticketData.linkedAssetId || null,
+      evidence: ticketData.evidence || null,
+      evidenceName: ticketData.evidenceName || null,
     });
 
     if (notes && Array.isArray(notes)) {
@@ -202,6 +205,8 @@ export async function updateTicket(id: string, fields: any) {
     if (fields.slaDeadline !== undefined) updatePayload.slaDeadline = fields.slaDeadline;
     if (fields.resolutionNotes !== undefined) updatePayload.resolutionNotes = fields.resolutionNotes;
     if (fields.linkedAssetId !== undefined) updatePayload.linkedAssetId = fields.linkedAssetId;
+    if (fields.evidence !== undefined) updatePayload.evidence = fields.evidence;
+    if (fields.evidenceName !== undefined) updatePayload.evidenceName = fields.evidenceName;
 
     await db.update(tickets).set(updatePayload).where(eq(tickets.id, id));
 
@@ -272,6 +277,8 @@ export async function createChange(data: any) {
       cabMeetingDate: data.cabMeetingDate || null,
       cabVotes: data.cabVotes || null,
       cabNotes: data.cabNotes || null,
+      excelFile: data.excelFile || null,
+      excelFileName: data.excelFileName || null,
     });
     return data;
   } catch (error) {
@@ -297,6 +304,8 @@ export async function updateChange(id: string, fields: any) {
     if (fields.cabMeetingDate !== undefined) updatePayload.cabMeetingDate = fields.cabMeetingDate;
     if (fields.cabVotes !== undefined) updatePayload.cabVotes = fields.cabVotes;
     if (fields.cabNotes !== undefined) updatePayload.cabNotes = fields.cabNotes;
+    if (fields.excelFile !== undefined) updatePayload.excelFile = fields.excelFile;
+    if (fields.excelFileName !== undefined) updatePayload.excelFileName = fields.excelFileName;
 
     await db.update(changeRequests).set(updatePayload).where(eq(changeRequests.id, id));
     return id;
@@ -590,4 +599,48 @@ export async function deleteCabMember(id: number) {
     throw new Error("Gagal menghapus anggota CAB.", { cause: error });
   }
 }
+
+// Asset Detail & Histories helper
+export async function getAssetById(id: string) {
+  try {
+    const result = await db.select().from(assets).where(eq(assets.id, id)).limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error("Error in getAssetById query:", error);
+    return null;
+  }
+}
+
+export async function getAssetHistories(assetId: string) {
+  try {
+    return await db.select()
+      .from(assetHistories)
+      .where(eq(assetHistories.assetId, assetId))
+      .orderBy(desc(assetHistories.id));
+  } catch (error) {
+    console.error("Error in getAssetHistories query:", error);
+    throw new Error("Gagal mengambil riwayat aset.", { cause: error });
+  }
+}
+
+export async function createAssetHistory(data: any) {
+  try {
+    await db.insert(assetHistories).values({
+      assetId: data.assetId,
+      actionType: data.actionType,
+      fromUser: data.fromUser || null,
+      toUser: data.toUser || null,
+      fromLocation: data.fromLocation || null,
+      toLocation: data.toLocation || null,
+      notes: data.notes || null,
+      changedBy: data.changedBy,
+      createdAt: data.createdAt || new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error in createAssetHistory query:", error);
+    throw new Error("Gagal menyimpan riwayat perubahan aset.", { cause: error });
+  }
+}
+
 
