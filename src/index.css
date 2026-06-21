@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;550;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-indigo-50: #fef2f2;
+  --color-indigo-100: #fee2e2;
+  --color-indigo-150: #fecaca;
+  --color-indigo-200: #fca5a5;
+  --color-indigo-300: #fca5a5;
+  --color-indigo-400: #f87171;
+  --color-indigo-500: #ef4444;
+  --color-indigo-600: #e30613; /* Primary IFG Crimson Red */
+  --color-indigo-650: #dc2626;
+  --color-indigo-700: #b91c1c;
+  --color-indigo-750: #991b1b;
+  --color-indigo-800: #991b1b;
+  --color-indigo-850: #7f1d1d;
+  --color-indigo-900: #7f1d1d;
+  --color-indigo-950: #450a0a;
+
+  --color-emerald-50: #fef2f2;
+  --color-emerald-100: #fee2e2;
+  --color-emerald-500: #ef4444;
+  --color-emerald-600: #e30613;
+  --color-emerald-650: #b91c1c;
+  --color-emerald-700: #991b1b;
+}
